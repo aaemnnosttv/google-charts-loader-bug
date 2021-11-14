@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Google Charts Loader Test</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐛</text></svg>"
+    />
+
+    <script>
+      const timestamp = Date.now();
+
+      function debugGlobal(name, logLoaderProp) {
+        const value = window[name];
+
+        console.group(`window.${name}`);
+        console.log(name, value);
+        console.dir(value);
+        // Loader props
+        logLoaderProp(value, 'charts');
+        logLoaderProp(value, 'load');
+        logLoaderProp(value, 'loader');
+        logLoaderProp(value, 'setOnLoadCallback');
+        logLoaderProp(value, 'visualization');
+        console.groupEnd();
+      }
+
+      function debug(group) {
+        console.group(`${group} ${Date.now() - timestamp}ms`);
+
+        if (window.google !== undefined || window.element !== undefined) {
+          console.log('google === element', window.google === window.element);
+        }
+
+        debugGlobal('google', (object, property) =>
+          console.log(`.${property}`, object?.[property])
+        );
+        // Warn if element has any loader props set on it.
+        debugGlobal('element', (object, property) => {
+          const method = object?.hasOwnProperty(property) ? 'warn' : 'log';
+          console[method](`.${property}`, object?.[property]);
+        });
+
+        console.groupEnd();
+      }
+    </script>
+  </head>
+
+  <body>
+    <h1>Google Charts Loader Test</h1>
+
+    <p>
+      This demonstrates a bug with the Google charts loader resulting in
+      inconsistent behavior caused by a collision on the window object.
+    </p>
+
+    <p>For more information, open the console.</p>
+
+    <form method="GET">
+      <button name="fix">Test Default</button>
+      <button name="fix" value="1">Test Fix</button>
+    </form>
+
+    <!-- HTML Standard – 7.3.3 Named access on the Window object -->
+    <!-- https://html.spec.whatwg.org/multipage/window-object.html#named-access-on-the-window-object -->
+    <!-- embed, form, img, or object elements that have a name content attribute whose value is name and are in a document tree with window's associated Document as their root -->
+    <!-- <img src="favicon.ico" alt="" name="google" /> -->
+    <!-- HTML elements that have an id content attribute whose value is name and are in a document tree with window's associated Document as their root. -->
+    <div id="google"></div>
+    <!-- ⚠️ This element will be referenced by window.google by default until defined in JS. -->
+    <!-- This results in some properties on the google global "disappearing" once charts are loaded. -->
+
+    <script>
+      const fix = Boolean(new URLSearchParams(location.search).get('fix'));
+      const googleIsElement = window.google instanceof Element;
+      const element = document.querySelector(
+        'embed[name="google"],form[name="google"],img[name="google"],object[name="google"],[id="google"]'
+      );
+
+      if (element) {
+        console.log(
+          'Storing a reference to the problematic element as window.element',
+          element
+        );
+        window.element = element;
+      }
+
+      if (googleIsElement) {
+        console.warn(`google is an ${google.constructor.name}!`);
+      }
+
+      if (fix && googleIsElement) {
+        console.group('Applying fix');
+        window.google = undefined; // Define in JS to avoid Element reference.
+        console.log('google', google);
+        console.groupEnd();
+      } else if (fix && !googleIsElement) {
+        console.log('google is not an Element, nothing to fix.');
+      }
+
+      debug('loader.js:before');
+    </script>
+    <script src="https://www.gstatic.com/charts/loader.js"></script>
+    <script>
+      debug('loader.js:after');
+
+      google.charts.load('current', { packages: ['corechart'] });
+
+      debug('google.charts.load:after');
+
+      google.charts.setOnLoadCallback(() => {
+        debug('google.charts.load:onLoadCallback');
+      });
+    </script>
+  </body>
+</html>
